@@ -21,7 +21,7 @@ export default class BookTransactionScreen extends Component{
   }
 
   handleTransaction = async ()=>{
-    var transactionMessage;
+    /*var transactionMessage;
     db.collection('books').doc(this.state.scannedBookId).get()
     .then(doc =>{
       var book = doc.data();
@@ -35,7 +35,90 @@ export default class BookTransactionScreen extends Component{
       }
     });
     //ToastAndroid.show(transactionMessage, ToastAndroid.SHORT);
-    this.setState({transactionMessage:transactionMessage});
+    this.setState({transactionMessage:transactionMessage});*/
+    var transactionType = await this.checkBookAvailability();
+    if (!transactionType){
+      alert('The book does not exist in the library database');
+      this.setState({scannedBookId:'', scannedStudentId:''});
+    }
+    else if(transactionType === 'Issue'){
+      var isStudentEligible = await this.checkStudentEligibilityForBookIssue();
+      if (isStudentEligible){
+        this.initiateBookIssue();
+        alert('Book issued to the student.');
+      }
+    }
+    else{
+      var isStudentEligible = await this.checkStudentEligibilityForBookReturn();
+      if (isStudentEligible){
+        this.initiateBookReturn();
+        alert('Book returned to the library.');
+      }
+    }
+  }
+
+  checkBookAvailability = async ()=>{
+    const bookRef = await db.collection('books').where("bookId", "==", this.state.scannedBookId)
+    .get();
+    var transactionType = '';
+    if (bookRef.docs.length === 0){
+      transactionType = false;
+    }
+    else {
+      bookRef.docs.map(doc=>{
+        var book = doc.data();
+        if (book.bookAvailability){
+          transactionType = 'Issue';
+        }
+        else{
+          transactionType = 'Return';
+        }
+      })
+    }
+    return transactionType;
+  }
+
+  checkStudentEligibilityForBookIssue = async ()=>{
+    const studentRef = await db.collection('students').where("studentId", "==", this.state.scannedStudentId)
+    .get();
+    var isStudentEligible = '';
+    if (studentRef.docs.length === 0){
+      isStudentEligible = false;
+      alert('Student ID does not exist in the database');
+      this.setState({scannedStudentId:'', scannedBookId: ''});
+    }
+    else{
+      studentRef.docs.map(doc=>{
+        var student = doc.data();
+        if (student.numberOfBooksIssued < 2){
+          isStudentEligible = true;
+        }
+        else {
+          isStudentEligible = false;
+          alert('The student has already issued a book.');
+          this.setState({scannedStudentId:'', scannedBookId:''});
+        }
+      })
+    }
+    return isStudentEligible;
+  }
+
+  checkStudentEligibilityForBookReturn = async ()=>{
+    const transactionRef = await db.collection('transactions').where("bookId", "==", this.state.scannedBookId)
+    .limit(1).get();
+    var isStudentEligible = '';
+    transactionRef.docs.map(doc=>{
+    var lastBookTransaction = doc.data();
+    if (lastBookTransaction.studentId === this.state.scannedStudentId){
+      isStudentEligible = true;
+    }
+    else {
+      isStudentEligible = false;
+      alert('The book was not issued by this student.');
+      this.setState({scannedStudentId:'', scannedBookId:''});
+    }
+  })
+    return isStudentEligible;
   }
 
   initiateBookIssue = async ()=>{
@@ -53,9 +136,8 @@ export default class BookTransactionScreen extends Component{
     });
     alert('Book Issued');
     //ToastAndroid.show('Book Issued', ToastAndroid.SHORT);
-    this.setState({scannedStudentId:'', scannedBookId:''});
+    //this.setState({scannedStudentId:'', scannedBookId:''});
   }
-
 
 
   initiateBookReturn = async ()=>{
@@ -73,9 +155,8 @@ export default class BookTransactionScreen extends Component{
     });
     alert('Book Returned');
     //ToastAndroid.show('Book Returned', ToastAndroid.SHORT);
-    this.setState({scannedStudentId:'', scannedBookId:''});
+    //this.setState({scannedStudentId:'', scannedBookId:''});
   }
-
 
 
   getCameraPermissions = async (Id)=>{
@@ -87,7 +168,6 @@ export default class BookTransactionScreen extends Component{
       buttonState: Id
     });
   }
-
 
 
   handleBarCodeScanned = async ({type, data})=>{
@@ -168,7 +248,8 @@ export default class BookTransactionScreen extends Component{
         <TouchableOpacity 
           style = {styles.submitButton}
           onPress = {async()=>{
-            var transactionMessage = await this.handleTransaction();
+            var transactionMessage = await this.handleTransaction()
+            this.setState({scannedStudentId:'', scannedBookId:''});;
           }}>
           <Text style = {styles.submitButtonText}>Submit</Text>
         </TouchableOpacity>
